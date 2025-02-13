@@ -1,16 +1,37 @@
-# Tauri + Vue + TypeScript
+# Ryzen PowerHouse
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+# NOT FOR GENERAL USE YET!!
 
-## Recommended IDE Setup
+**Ryzen PowerHouse** is a Tauri-based application that provides a user-friendly graphical interface for adjusting AMD power management settings using the popular `ryzenadj` tool. The app lets you tweak key parameters of your Ryzen system, save your settings as presets, and quickly apply them via the system tray.
 
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Features
 
-## Type Support For `.vue` Imports in TS
+-   **GUI for AMD Power Management**  
+    Adjust the most critical parameters:
 
-Since TypeScript cannot handle type information for `.vue` imports, they are shimmed to be a generic Vue component type by default. In most cases this is fine if you don't really care about component prop types outside of templates. However, if you wish to get actual prop types in `.vue` imports (for example to get props validation when using manual `h(...)` calls), you can enable Volar's Take Over mode by following these steps:
+    -   **Sustained Power Limit** (`--stapm-limit`)
+    -   **Actual/Fast Power Limit** (`--fast-limit`)
+    -   **Average/Slow Power Limit** (`--slow-limit`)
+    -   **Tctl Temperature Limit** (`--tctl-temp`)
+    -   **VRM Current Limits** (`--vrm-current` and `--vrmmax-current`)
+    -   **Prochot Deassertion Ramp** (`--prochot-deassertion-ramp`)
+    -   Flag options for enabling **Power Saving** and **Maximum Performance**
 
-1. Run `Extensions: Show Built-in Extensions` from VS Code's command palette, look for `TypeScript and JavaScript Language Features`, then right click and select `Disable (Workspace)`. By default, Take Over mode will enable itself if the default TypeScript extension is disabled.
-2. Reload the VS Code window by running `Developer: Reload Window` from the command palette.
+-   **User-Defined Presets**
 
-You can learn more about Take Over mode [here](https://github.com/johnsoncodehk/volar/discussions/471).
+    -   Save your preferred configurations as presets
+    -   Update the system tray dynamically with your custom presets.
+    -   Quickly apply a preset through the tray context menu.
+
+-   **Tray Integration & Background Operation**
+    -   The application runs in the background with a system tray icon.
+    -   Right-click the tray to access a submenu of your saved presets, open the configuration window, or exit the app.
+    -   Closing the main window minimizes the app rather than quitting.
+
+## Contributing
+
+Contributions are welcome! Please open issues or submit pull requests on GitHub with your improvements or bug fixes.
+
+## License
+
+This project is licensed under the GNU General Public License version 3 (GPLv3). See the [LICENSE](LICENSE) file for details.
