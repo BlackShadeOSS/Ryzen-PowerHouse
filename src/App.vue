@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
-// Create a configuration object with only the most important options.
+// The configuration object.
 const config = reactive({
   stapmLimit: 45000,             // Sustained Power Limit (mW)
   fastLimit: 50000,              // Actual Power Limit (PPT FAST) (mW)
@@ -17,21 +18,33 @@ const config = reactive({
 
 // For preset functionality.
 const presetName = ref("");
+// The presets will be fetched from the backend.
 const presets = ref<Array<{ name: string; [key: string]: unknown }>>([]);
 
-// Load any saved presets from localStorage when the component is mounted.
+// On mount, retrieve stored presets from the backend and
+// listen for tray events indicating a preset was selected.
 onMounted(() => {
-  const stored = localStorage.getItem("amdadj_presets");
-  if (stored) {
-    try {
-      presets.value = JSON.parse(stored);
-    } catch (error) {
-      console.error("Failed to parse stored presets:", error);
+  invoke("get_presets")
+      .then((result) => {
+        presets.value = result as Array<{ name: string; [key: string]: unknown }>;
+      })
+      .catch((error) => {
+        console.error("Error fetching presets:", error);
+      });
+
+  // Listen for the tray event (emitted from the backend when a preset
+  // menu item is clicked) so that we can load that preset.
+  listen("tray-preset-selected", (event) => {
+    const presetId = event.payload as string;
+    const found = presets.value.find((preset) => preset.name === presetId);
+    if (found) {
+      loadPreset(found);
+    } else {
+      console.error("Unknown preset selected from tray:", presetId);
     }
-  }
+  });
 });
 
-// Call the Tauri command to apply the current AMDadj configuration.
 function applyConfiguration() {
   console.log("Applying AMDadj configuration:", { ...config });
   invoke("apply_amdadj_config", { ...config })
@@ -43,19 +56,29 @@ function applyConfiguration() {
       });
 }
 
-// Save the current configuration as a preset.
+// Save the current configuration as a preset (on the backend).
 function savePreset() {
   if (!presetName.value.trim()) {
     alert("Please enter a preset name.");
     return;
   }
+  // Create a new preset using the current config.
   const newPreset = { name: presetName.value.trim(), ...config };
-  presets.value.push(newPreset);
-  localStorage.setItem("amdadj_presets", JSON.stringify(presets.value));
-  presetName.value = "";
+  invoke("save_preset", { preset: newPreset })
+      .then(() => {
+        // Refresh the presets list.
+        return invoke("get_presets");
+      })
+      .then((result) => {
+        presets.value = result as Array<{ name: string; [key: string]: unknown }>;
+        presetName.value = "";
+      })
+      .catch((error) => {
+        console.error("Error saving preset:", error);
+      });
 }
 
-// Load a preset into the configuration.
+// Load a preset into the current configuration.
 function loadPreset(preset: { name: string; [key: string]: unknown }) {
   for (const key in preset) {
     if (key !== "name" && Object.prototype.hasOwnProperty.call(config, key)) {
@@ -113,7 +136,11 @@ function loadPreset(preset: { name: string; [key: string]: unknown }) {
       <h2>Other Settings</h2>
       <div class="form-group">
         <label for="prochotDeassertionRamp">Prochot Deassertion Ramp</label>
-        <input id="prochotDeassertionRamp" type="number" v-model.number="config.prochotDeassertionRamp" />
+        <input
+            id="prochotDeassertionRamp"
+            type="number"
+            v-model.number="config.prochotDeassertionRamp"
+        />
       </div>
       <div class="form-group checkbox-group">
         <label>
@@ -157,10 +184,12 @@ function loadPreset(preset: { name: string; [key: string]: unknown }) {
   padding: 2rem;
   text-align: center;
 }
-h1, h2 {
+h1,
+h2 {
   margin-bottom: 1rem;
 }
-.config-section, .preset-section {
+.config-section,
+.preset-section {
   margin-bottom: 2rem;
   border: 1px solid #ccc;
   padding: 1rem;
