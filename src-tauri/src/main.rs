@@ -2,25 +2,26 @@ use tauri::{
     Manager,
     tray::TrayIconBuilder,
     menu::{MenuBuilder, MenuItem, IsMenuItem},
+    Emitter,
 };
 use serde::{Serialize, Deserialize};
 use std::sync::Mutex;
+use std::process::Command;
 
-// Global presets vector
 static PRESETS: Mutex<Vec<Preset>> = Mutex::new(vec![]);
 
 #[derive(Clone, Serialize, Deserialize)]
 struct Preset {
     name: String,
-    stapm_limit: Option<u32>,        // Sustained Power Limit (mW)
-    fast_limit: Option<u32>,         // Actual Power Limit (mW)
-    slow_limit: Option<u32>,         // Average Power Limit (mW)
-    slow_time: Option<u32>,          // Slow PPT Constant Time (s)
-    tctl_temp: Option<u32>,          // Tctl Temperature Limit (°C)
-    apu_skin_temp: Option<u32>,      // APU Skin Temperature Limit (°C)
-    dgpu_skin_temp: Option<u32>,     // dGPU Skin Temperature Limit (°C)
-    power_saving: bool,              // Power saving mode
-    max_performance: bool,           // Max performance mode
+    stapm_limit: Option<u32>,
+    fast_limit: Option<u32>,
+    slow_limit: Option<u32>,
+    slow_time: Option<u32>,
+    tctl_temp: Option<u32>,
+    apu_skin_temp: Option<u32>,
+    dgpu_skin_temp: Option<u32>,
+    power_saving: bool,
+    max_performance: bool,
 }
 
 #[tauri::command]
@@ -36,8 +37,68 @@ fn get_presets() -> Result<Vec<Preset>, String> {
     Ok(presets.clone())
 }
 
+#[tauri::command]
+async fn apply_preset(name: String) -> Result<(), String> {
+    let presets = PRESETS.lock().unwrap();
+    let preset = presets.iter().find(|p| p.name == name);
+
+    if let Some(preset) = preset {
+        // Build ryzenadj command
+        let mut command: Vec<String> = vec!["ryzenadj".to_string()];  // Changed to Vec<String>
+
+        // Helper function to add option with value
+        let add_option = |option: &str, value: Option<u32>| {
+            if let Some(v) = value {
+                let value_str = v.to_string();
+                vec![option.to_string(), value_str]  // Convert both to owned strings
+            } else {
+                vec![]
+            }
+        };
+
+        // Add all options
+        if let Some(limit) = preset.stapm_limit {
+            command.extend(add_option("--stapm-limit", Some(limit)));
+        }
+        if let Some(limit) = preset.fast_limit {
+            command.extend(add_option("--fast-limit", Some(limit)));
+        }
+        if let Some(limit) = preset.slow_limit {
+            command.extend(add_option("--slow-limit", Some(limit)));
+        }
+        if let Some(time) = preset.slow_time {
+            command.extend(add_option("--slow-time", Some(time)));
+        }
+        if let Some(temp) = preset.tctl_temp {
+            command.extend(add_option("--tctl-temp", Some(temp)));
+        }
+        if let Some(temp) = preset.apu_skin_temp {
+            command.extend(add_option("--apu-skin-temp", Some(temp)));
+        }
+        if let Some(temp) = preset.dgpu_skin_temp {
+            command.extend(add_option("--dgpu-skin-temp", Some(temp)));
+        }
+
+        println!("Executing command: {:?}", command.join(" "));
+
+        // Execute the command
+        let status = Command::new(&command[0])
+            .args(&command[1..])
+            .status()
+            .map_err(|e| format!("Failed to execute command: {}", e))?;
+
+        if !status.success() {
+            return Err(format!("Command failed with exit code: {}", status.code().unwrap_or(1)));
+        }
+
+        Ok(())
+    } else {
+        Err(format!("Preset not found: {}", name))
+    }
+}
+
 fn enable_tray(app: &mut tauri::App) {
-    use tauri::menu::{MenuBuilder, MenuItem, IsMenuItem};
+    use tauri::menu::{MenuBuilder, MenuItem};
 
     // Create default menu items
     let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>).unwrap();
@@ -53,7 +114,7 @@ fn enable_tray(app: &mut tauri::App) {
         custom_items.push(no_presets_i);
     } else {
         // Add preset items
-        for preset in &*presets {  // Dereference the MutexGuard
+        for preset in &*presets {
             let item = MenuItem::with_id(app, &preset.name, &preset.name, true, None::<&str>).unwrap();
             custom_items.push(item);
         }
@@ -95,8 +156,9 @@ fn enable_tray(app: &mut tauri::App) {
             }
             preset_id => {
                 println!("Preset clicked: {}", preset_id);
-                // Handle preset selection
+                let _ = app.emit("apply_preset", preset_id).unwrap();  // Changed to emit
             }
+            _ => println!("Unhandled menu item: {:?}", event.id),
         })
         .build(app)
         .unwrap();
@@ -116,7 +178,7 @@ fn main() {
                 api.prevent_close();
             }
         })
-        .invoke_handler(tauri::generate_handler![save_preset, get_presets])
+        .invoke_handler(tauri::generate_handler![save_preset, get_presets, apply_preset])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
